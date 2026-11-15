@@ -5,6 +5,7 @@
 #include "WaveformView.h"
 #include "PadGrid.h"
 #include "ControlCards.h"
+#include "PresetBar.h"
 
 class SimpleSamplerEditor : public juce::AudioProcessorEditor,
                             private juce::Timer
@@ -33,6 +34,7 @@ private:
     PitchCard pitchCard;
     LoopCard loopCard;
     EnvelopeCard envelopeCard;
+    PresetBar presetBar;
 
     juce::Slider masterKnob;
     std::unique_ptr<juce::SliderParameterAttachment> masterAttachment;

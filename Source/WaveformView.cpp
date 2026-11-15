@@ -250,17 +250,18 @@ void WaveformView::paint (juce::Graphics& g)
     g.setColour (missing ? juce::Colour (0xffe0607e) : PastelLookAndFeel::text());
     juce::String nameText = fileName.isNotEmpty() ? fileName : juce::String ("No sample");
     if (missing) nameText = "Missing: " + nameText;
-    const int nameWidth = juce::jmin (header.getWidth(), juce::GlyphArrangement::getStringWidthInt (g.getCurrentFont(), nameText) + 8);
-    g.drawText (nameText, header.removeFromLeft (nameWidth), juce::Justification::centredLeft, true);
+    g.drawText (nameText, header, juce::Justification::centredLeft, true);
 
     if (sample != nullptr)
     {
-        g.setFont (PastelLookAndFeel::font (12.0f));
+        // file facts, right-aligned in the ruler row
+        g.setFont (PastelLookAndFeel::font (10.5f));
         g.setColour (PastelLookAndFeel::textSoft());
-        const auto info = juce::String (sample->lengthSeconds, 2) + " s   "
-                        + juce::String (sample->sourceSampleRate / 1000.0, 1) + " kHz   "
+        const auto info = juce::String (sample->lengthSeconds, 2) + " s  |  "
+                        + juce::String (sample->sourceSampleRate / 1000.0, 1) + " kHz  |  "
                         + (sample->sourceChannels == 1 ? "mono" : "stereo");
-        g.drawText (info, header.withTrimmedLeft (6), juce::Justification::centredLeft, true);
+        const auto ruler = rulerArea();
+        g.drawText (info, ruler.withY (ruler.getY() - 9).withHeight (12), juce::Justification::centredRight, false);
     }
 
     g.setFont (PastelLookAndFeel::font (11.5f));

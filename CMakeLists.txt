@@ -59,7 +59,9 @@ set(SIMPLESAMPLER_SOURCES
     Source/EnvelopeEditor.cpp
     Source/ControlCards.cpp
     Source/WaveformView.cpp
-    Source/PadGrid.cpp)
+    Source/PadGrid.cpp
+    Source/PresetManager.cpp
+    Source/PresetBar.cpp)
 
 set(SIMPLESAMPLER_DEFINITIONS
     JUCE_WEB_BROWSER=0
@@ -97,7 +99,7 @@ if(SIMPLESAMPLER_BUILD_TESTS)
     juce_add_console_app(SimpleSamplerTests PRODUCT_NAME "SimpleSamplerTests")
     target_sources(SimpleSamplerTests PRIVATE Tests/Tests.cpp ${SIMPLESAMPLER_SOURCES})
     target_include_directories(SimpleSamplerTests PRIVATE Source)
-    target_compile_definitions(SimpleSamplerTests PRIVATE ${SIMPLESAMPLER_DEFINITIONS})
+    target_compile_definitions(SimpleSamplerTests PRIVATE ${SIMPLESAMPLER_DEFINITIONS} SS_HAS_PRESETS=1)
     target_link_libraries(SimpleSamplerTests PRIVATE
         juce::juce_audio_utils
         juce::juce_audio_formats

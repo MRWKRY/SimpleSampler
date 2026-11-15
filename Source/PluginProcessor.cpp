@@ -588,3 +588,16 @@ juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
     return new SimpleSamplerProcessor();
 }
+
+void SimpleSamplerProcessor::resetToInit()
+{
+    for (auto* p : getParameters())
+        p->setValueNotifyingHost (p->getDefaultValue());
+
+    for (int i = 0; i < numPads; ++i)
+        clearPad (i);
+
+    setPresetName ("Init");
+    setSelectedPad (0);
+    ++stateVersion;
+}

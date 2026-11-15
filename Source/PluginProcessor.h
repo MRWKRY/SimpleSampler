@@ -52,6 +52,8 @@ public:
     /** Same, but waits until the sample is ready (tests / offline use only). */
     bool loadSampleIntoPadBlocking (int padIndex, const juce::File& file);
     void clearPad (int padIndex);
+    /** Empties every pad and puts all parameters back to their defaults. */
+    void resetToInit();
 
     /** Pad pressed / released in the editor (thread-safe, handled on the audio thread). */
     void triggerPadFromUI (int padIndex, bool isDown) noexcept;

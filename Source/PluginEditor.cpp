@@ -9,8 +9,9 @@ namespace
 
 SimpleSamplerEditor::SimpleSamplerEditor (SimpleSamplerProcessor& p)
     : AudioProcessorEditor (p), processor (p),
-      waveform (p), grid (p), bpmCard (p), pitchCard (p), loopCard (p), envelopeCard (p)
+      waveform (p), grid (p), bpmCard (p), pitchCard (p), loopCard (p), envelopeCard (p), presetBar (p)
 {
+    addAndMakeVisible (presetBar);
     setLookAndFeel (&lookAndFeel);
     setOpaque (true);
 
@@ -120,6 +121,15 @@ void SimpleSamplerEditor::resized()
     auto header = headerArea();
     masterKnob.setBounds (header.removeFromRight (44).withSizeKeepingCentre (44, 44));
 
+    // preset bar: lines up with the right panel, between the title and the output read-out
+    {
+        auto bar = header;
+        bar.removeFromRight (90);
+        bar.removeFromLeft (250);
+        const int width = juce::jlimit (200, 360, bar.getWidth());
+        presetBar.setBounds (bar.removeFromRight (width).withSizeKeepingCentre (width, 36));
+    }
+
     auto area = getLocalBounds().reduced (margin);
     area.removeFromTop (headerHeight + gap - 4);
 
@@ -207,6 +217,7 @@ void SimpleSamplerEditor::timerCallback()
         lastStateVersion = stateVersion;
         selectPad (processor.getSelectedPad(), true);
         grid.refreshAll();
+        presetBar.refresh();
     }
 
     // samples that finished loading / were cleared

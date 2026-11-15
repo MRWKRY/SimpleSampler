@@ -528,14 +528,85 @@ static void testPresets()
     check (presets.getPresetNames().size() == 1, "one preset left");
     check (! presets.loadPreset ("Nope"), "loading an unknown preset fails");
     check (presets.savePreset ("bad:/name?") && presets.getPresetNames().size() == 2, "illegal characters are cleaned");
+
+    p.resetToInit();
+    checkNear (getParam (p, 3, id::semitones), 0.0, 1e-6, "reset: parameters back to default");
+    check (! p.getPad (3).hasFile() && p.getPresetName() == "Init", "reset: pads cleared");
 }
 #endif
+
+//==============================================================================
+// Developer helper:  SimpleSamplerTests --demo <folder>
+// Writes a few synthesised samples plus a plugin state (base64, the format the
+// Standalone app keeps in its settings file) so the GUI can be looked at with content.
+static int makeDemo (const juce::File& dir)
+{
+    dir.createDirectory();
+    const double sr = 44100.0;
+    juce::Random random (7);
+
+    auto write = [&] (const juce::String& name, double seconds, int channels, std::function<float (double, int)> f)
+    {
+        const int n = (int) (sr * seconds);
+        juce::AudioBuffer<float> b (channels, n);
+        for (int ch = 0; ch < channels; ++ch)
+            for (int i = 0; i < n; ++i)
+                b.setSample (ch, i, f (i / sr, ch));
+
+        auto file = dir.getChildFile (name);
+        file.deleteFile();
+        juce::WavAudioFormat wav;
+        std::unique_ptr<juce::AudioFormatWriter> w (wav.createWriterFor (new juce::FileOutputStream (file), sr, (unsigned int) channels, 16, {}, 0));
+        w->writeFromAudioSampleBuffer (b, 0, n);
+        return file;
+    };
+
+    const double twoPi = juce::MathConstants<double>::twoPi;
+    const auto kick  = write ("Kick.wav", 0.45, 1, [&] (double t, int) { return (float) (0.9 * std::exp (-t * 9.0) * std::sin (twoPi * (45.0 * t + 14.0 * (1.0 - std::exp (-t * 30.0))))); });
+    const auto snare = write ("Snare.wav", 0.35, 1, [&] (double t, int) { return (float) (std::exp (-t * 16.0) * (0.55 * (random.nextFloat() * 2.0f - 1.0f) + 0.4 * std::sin (twoPi * 190.0 * t))); });
+    const auto hat   = write ("Hat.wav", 0.12, 1, [&] (double t, int) { return (float) (0.5 * std::exp (-t * 55.0) * (random.nextFloat() * 2.0f - 1.0f)); });
+    const auto loop  = write ("Chord Loop 120bpm.wav", 4.0, 2, [&] (double t, int ch)
+    {
+        const double beat = std::fmod (t, 0.5);
+        const int step = (int) (t / 1.0) % 4;
+        static const double roots[4] = { 220.0, 174.61, 261.63, 196.0 };
+        const double env = std::exp (-beat * 5.0);
+        const double detune = ch == 0 ? 1.0 : 1.004;
+        double v = 0.0;
+        for (double m : { 1.0, 1.25, 1.5, 2.0 })
+            v += std::sin (twoPi * roots[step] * m * detune * t);
+        return (float) (0.16 * env * v);
+    });
+
+    SimpleSamplerProcessor p;
+    p.prepareToPlay (48000.0, 512);
+    p.loadSampleIntoPadBlocking (0, kick);
+    p.loadSampleIntoPadBlocking (1, snare);
+    p.loadSampleIntoPadBlocking (2, hat);
+    p.loadSampleIntoPadBlocking (4, loop);
+    setParam (p, 4, id::srcBpm, 120.0f);   setParam (p, 4, id::dstBpm, 139.0f);
+    setParam (p, 4, id::semitones, 1.0f);  setParam (p, 4, id::loop, 1.0f);
+    setParam (p, 4, id::loopStart, 0.25f); setParam (p, 4, id::loopEnd, 0.75f);
+    setParam (p, 4, id::attack, 20.0f);    setParam (p, 4, id::decay, 400.0f);
+    setParam (p, 4, id::sustain, 0.7f);    setParam (p, 4, id::release, 300.0f);
+    p.setSelectedPad (4);
+    p.setPresetName ("Demo Kit");
+
+    juce::MemoryBlock state;
+    p.getStateInformation (state);
+    dir.getChildFile ("state.b64").replaceWithText (state.toBase64Encoding());
+    std::cout << "demo written to " << dir.getFullPathName() << std::endl;
+    return 0;
+}
 
 //==============================================================================
 int main (int argc, char** argv)
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
     verbose = argc > 1 && juce::String (argv[1]) == "-v";
+
+    if (argc > 2 && juce::String (argv[1]) == "--demo")
+        return makeDemo (juce::File::getCurrentWorkingDirectory().getChildFile (juce::String (argv[2])));
 
     testMath();
     testEngine();
