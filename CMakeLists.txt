@@ -60,6 +60,7 @@ set(SIMPLESAMPLER_SOURCES
     Source/ControlCards.cpp
     Source/WaveformView.cpp
     Source/PadGrid.cpp
+    Source/Modulation/ModMatrix.cpp
     Source/PresetManager.cpp
     Source/PresetBar.cpp)
 
@@ -97,7 +98,7 @@ endif()
 # ---------------------------------------------------------------------------
 if(SIMPLESAMPLER_BUILD_TESTS)
     juce_add_console_app(SimpleSamplerTests PRODUCT_NAME "SimpleSamplerTests")
-    target_sources(SimpleSamplerTests PRIVATE Tests/Tests.cpp ${SIMPLESAMPLER_SOURCES})
+    target_sources(SimpleSamplerTests PRIVATE Tests/Tests.cpp Tests/TestsV2.cpp ${SIMPLESAMPLER_SOURCES})
     target_include_directories(SimpleSamplerTests PRIVATE Source)
     target_compile_definitions(SimpleSamplerTests PRIVATE ${SIMPLESAMPLER_DEFINITIONS} SS_HAS_PRESETS=1)
     target_link_libraries(SimpleSamplerTests PRIVATE

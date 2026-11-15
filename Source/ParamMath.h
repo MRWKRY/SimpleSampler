@@ -155,5 +155,90 @@ namespace ParamMath
         static constexpr const char* sustain   = "sustain";
         static constexpr const char* release   = "release";
         static constexpr const char* master    = "masterGain";
+
+        // ---- version 2: per-pad mixer / tone / genre (all 0..100 % unless noted) ----
+        static constexpr const char* level     = "level";       // dB, -60 = silent
+        static constexpr const char* pan       = "pan";         // -100..100
+        static constexpr const char* eqLow     = "eqLow";       // dB
+        static constexpr const char* eqMid     = "eqMid";       // dB
+        static constexpr const char* eqMidFreq = "eqMidFreq";   // Hz
+        static constexpr const char* eqHigh    = "eqHigh";      // dB
+        static constexpr const char* drive     = "drive";
+        static constexpr const char* sendRev   = "sendRev";
+        static constexpr const char* sendDly   = "sendDly";
+        static constexpr const char* bloom     = "bloom";
+        static constexpr const char* grain     = "grain";
+        static constexpr const char* drift     = "drift";
+        static constexpr const char* warmth    = "warmth";
+        static constexpr const char* dew       = "dew";
+        static constexpr const char* pump      = "pump";
+        static constexpr const char* wobble    = "wobble";
+        static constexpr const char* gate      = "gate";
+        static constexpr const char* width     = "width";
+        static constexpr const char* crush     = "crush";
+        static constexpr const char* dive      = "dive";
+        static constexpr const char* formant   = "formant";
+
+        /** The per-pad parameters added in version 2, in the order used everywhere (PadValues, UI, tests). */
+        constexpr int numPadFx = 21;
+        inline const char* const* padFxNames() noexcept
+        {
+            static const char* const names[numPadFx] =
+            {
+                level, pan, eqLow, eqMid, eqMidFreq, eqHigh, drive, sendRev, sendDly,
+                bloom, grain, drift, warmth, dew,
+                pump, wobble, gate, width, crush, dive, formant
+            };
+            return names;
+        }
+        enum PadFx
+        {
+            fxLevel = 0, fxPan, fxEqLow, fxEqMid, fxEqMidFreq, fxEqHigh, fxDrive, fxSendRev, fxSendDly,
+            fxBloom, fxGrain, fxDrift, fxWarmth, fxDew,
+            fxPump, fxWobble, fxGate, fxWidth, fxCrush, fxDive, fxFormant
+        };
+
+        // ---- version 2: global effects ----
+        static constexpr const char* rvSize     = "rvSize";
+        static constexpr const char* rvDecay    = "rvDecay";
+        static constexpr const char* rvPreDelay = "rvPreDelay";
+        static constexpr const char* rvLowCut   = "rvLowCut";
+        static constexpr const char* rvHighCut  = "rvHighCut";
+        static constexpr const char* rvMix      = "rvMix";
+        static constexpr const char* dlSync     = "dlSync";
+        static constexpr const char* dlDivision = "dlDivision";
+        static constexpr const char* dlTime     = "dlTime";
+        static constexpr const char* dlFeedback = "dlFeedback";
+        static constexpr const char* dlLowCut   = "dlLowCut";
+        static constexpr const char* dlHighCut  = "dlHighCut";
+        static constexpr const char* dlPingPong = "dlPingPong";
+        static constexpr const char* dlMix      = "dlMix";
+
+        // ---- version 2: shared settings of the genre knobs ----
+        static constexpr const char* pumpRate     = "pumpRate";
+        static constexpr const char* pumpRelease  = "pumpRelease";
+        static constexpr const char* wobbleRate   = "wobbleRate";
+        static constexpr const char* gateRate     = "gateRate";
+        static constexpr const char* diveRange    = "diveRange";
+        static constexpr const char* diveTime     = "diveTime";
+        static constexpr const char* formantRange = "formantRange";
+        inline juce::String gateStep (int step)   { return "gateStep" + juce::String (step + 1).paddedLeft ('0', 2); }
+
+        // ---- version 2: tempo, modulators, randomiser ----
+        static constexpr const char* tempo       = "manualTempo";
+        static constexpr const char* rndAmount   = "rndAmount";
+        static constexpr const char* rndScope    = "rndScope";
+        static constexpr const char* rndAuto     = "rndAuto";
+        static constexpr const char* rndInterval = "rndInterval";
+
+        inline juce::String mod (int modIndex, const char* name)   { return "m" + juce::String (modIndex + 1) + "_" + name; }
+        inline juce::String modStep (int modIndex, int step)       { return mod (modIndex, "s") + juce::String (step + 1).paddedLeft ('0', 2); }
+        static constexpr const char* modType = "type";
+        static constexpr const char* modSync = "sync";
+        static constexpr const char* modRate = "rate";
+        static constexpr const char* modHz   = "hz";
+        static constexpr const char* modMode = "mode";
     }
+
+    constexpr int numMods = 4;
 }

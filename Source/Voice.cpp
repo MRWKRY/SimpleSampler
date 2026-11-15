@@ -135,9 +135,11 @@ void Voice::prepare (double sampleRate)
     engine->inputLatency  = (int) engine->stretch.inputLatency();
     engine->outputLatency = (int) engine->stretch.outputLatency();
 
-    const int inSize = juce::jmax (chunkSize * maxSpeedRatio, engine->inputLatency) + 16;
-    inScratch.setSize (2, inSize, false, true, false);
+    const int maxSource = juce::jmax (chunkSize, resampleChunk * maxPitchRatio + 2);
+    inCapacity = juce::jmax (maxSource * maxSpeedRatio, engine->inputLatency);
+    inScratch.setSize (2, inCapacity + 16, false, true, false);
     outScratch.setSize (2, chunkSize, false, true, false);
+    srcScratch.setSize (2, maxSource + 16, false, true, false);
 
     adsr.setSampleRate (sampleRate);
 
@@ -181,14 +183,25 @@ void Voice::start (int padIndex, int midiNote, float velocity, SampleData::Ptr n
     adsr.reset();
     adsr.noteOn();
 
+    // pitch movement (Dive / Drift) state
+    for (auto& h : history) for (auto& s : h) s = 0.0f;
+    resampleFraction = 0.0;
+    resampling = false;
+    diveElapsed = 0;
+    previousRatio = std::pow (2.0f, juce::jlimit (-36.0f, 36.0f, settings.diveSemitones) / 12.0f);
+    lastFormant = settings.formantSemitones;
+
     // identical BPM and pitch -> play the sample untouched
-    bypass = std::abs (settings.speedRatio - 1.0) < 1.0e-6 && std::abs (settings.semitones) < 1.0e-6;
+    // (Dive / Drift / Formant need the stretch engine so that the tempo stays exact)
+    bypass = std::abs (settings.speedRatio - 1.0) < 1.0e-6 && std::abs (settings.semitones) < 1.0e-6
+             && ! settings.forceStretch;
 
     if (! bypass)
     {
         auto& st = engine->stretch;
         st.reset();
         st.setTransposeSemitones ((float) settings.semitones);
+        st.setFormantSemitones (settings.formantSemitones);
 
         float* in[2]  = { inScratch.getWritePointer (0),  inScratch.getWritePointer (1) };
         float* out[2] = { outScratch.getWritePointer (0), outScratch.getWritePointer (1) };
@@ -216,11 +229,17 @@ void Voice::start (int padIndex, int midiNote, float velocity, SampleData::Ptr n
     active = true;
 }
 
-void Voice::renderChunk (float* outL, float* outR, int n) noexcept
+/** Produces `count` frames of the voice's source stream.
+    `timeScale` < 1 makes the stretch engine deliver "longer" audio: the resampler after it then
+    raises the pitch again without changing the tempo. */
+void Voice::produce (float* outL, float* outR, int count, double timeScale) noexcept
 {
+    if (count <= 0)
+        return;
+
     if (bypass)
     {
-        reader.read (outL, outR, n);
+        reader.read (outL, outR, count);
         if (reader.finished())
             tailRemaining = 0;
         return;
@@ -229,34 +248,123 @@ void Voice::renderChunk (float* outL, float* outR, int n) noexcept
     float* in[2]  = { inScratch.getWritePointer (0), inScratch.getWritePointer (1) };
     float* out[2] = { outL, outR };
 
-    inputAccumulator += n * settings.speedRatio;
-    const int nIn = (int) inputAccumulator;
+    inputAccumulator += count * juce::jlimit (1.0 / maxSpeedRatio, (double) maxSpeedRatio, settings.speedRatio * timeScale);
+    int nIn = (int) inputAccumulator;
     inputAccumulator -= nIn;
+    nIn = juce::jmin (nIn, inCapacity);
 
     const bool wasFinished = reader.finished();
     reader.read (in[0], in[1], nIn);
-    engine->stretch.process (in, nIn, out, n);
+    engine->stretch.process (in, nIn, out, count);
 
     if (reader.finished())
     {
         if (! wasFinished || tailRemaining < 0)
-            tailRemaining = engine->outputLatency + (int) (engine->inputLatency / settings.speedRatio) + n;
+            tailRemaining = engine->outputLatency + (int) (engine->inputLatency / settings.speedRatio) + count;
 
-        tailRemaining = juce::jmax (0, tailRemaining - n);
+        tailRemaining = juce::jmax (0, tailRemaining - count);
     }
 }
 
-void Voice::render (float* left, float* right, int numSamples) noexcept
+float Voice::currentDive() const noexcept
 {
+    if (settings.diveSemitones == 0.0f)
+        return 0.0f;
+
+    const float t = (float) diveElapsed / juce::jmax (1.0f, settings.diveSeconds * (float) hostRate);
+    if (t >= 1.0f)
+        return 0.0f;
+
+    const float e = 1.0f - t;
+    return settings.diveSemitones * e * e;     // starts at the full amount, eases back to the normal pitch
+}
+
+/** Variable-speed read of the source stream (4-point Hermite), ratio gliding from ratioStart to ratioEnd. */
+void Voice::renderResampled (float* outL, float* outR, int n, float ratioStart, float ratioEnd) noexcept
+{
+    const double slope = ((double) ratioEnd - (double) ratioStart) / (double) n;
+
+    // how many new source frames are needed for this chunk
+    double end = resampleFraction;
+    for (int i = 0; i < n; ++i)
+        end += (double) ratioStart + slope * (double) i;
+    const int needed = juce::jlimit (0, resampleChunk * maxPitchRatio + 1, (int) std::floor (end));
+
+    float* src[2] = { srcScratch.getWritePointer (0), srcScratch.getWritePointer (1) };
+    for (int ch = 0; ch < 2; ++ch)
+        for (int k = 0; k < 4; ++k)
+            src[ch][k] = history[ch][k];
+
+    const double average = 0.5 * ((double) ratioStart + (double) ratioEnd);
+    produce (src[0] + 4, src[1] + 4, needed, 1.0 / juce::jmax (0.05, average));
+
+    double position = 1.0 + resampleFraction;       // interpolates between src[1] and src[2] at the start
+    const int lastIndex = needed + 1;
+    for (int i = 0; i < n; ++i)
+    {
+        const int index = juce::jmin (lastIndex, (int) position);
+        const auto f = (float) (position - (double) index);
+
+        for (int ch = 0; ch < 2; ++ch)
+        {
+            const float* s = src[ch] + index;
+            const float ym1 = s[-1], y0 = s[0], y1 = s[1], y2 = s[2];
+            const float c1 = 0.5f * (y1 - ym1);
+            const float c2 = ym1 - 2.5f * y0 + 2.0f * y1 - 0.5f * y2;
+            const float c3 = 0.5f * (y2 - ym1) + 1.5f * (y0 - y1);
+            (ch == 0 ? outL : outR)[i] = ((c3 * f + c2) * f + c1) * f + y0;
+        }
+        position += (double) ratioStart + slope * (double) i;
+    }
+
+    for (int ch = 0; ch < 2; ++ch)
+        for (int k = 0; k < 4; ++k)
+            history[ch][k] = src[ch][needed + k];
+
+    resampleFraction = juce::jlimit (0.0, 1.0, end - (double) needed);
+    resampling = true;
+}
+
+void Voice::render (float* left, float* right, int numSamples, float pitchSemitones, float formantSemitones) noexcept
+{
+    if (! bypass && formantSemitones != lastFormant)
+    {
+        engine->stretch.setFormantSemitones (formantSemitones);
+        lastFormant = formantSemitones;
+    }
+
     int done = 0;
 
     while (active && done < numSamples)
     {
-        const int n = juce::jmin (chunkSize, numSamples - done);
+        const float semitones = juce::jlimit (-36.0f, 36.0f, pitchSemitones + currentDive());
+        const float ratio = semitones == 0.0f ? 1.0f : std::pow (2.0f, semitones / 12.0f);
+        const bool moving = std::abs (ratio - 1.0f) > 1.0e-5f || std::abs (previousRatio - 1.0f) > 1.0e-5f;
+        const bool resample = moving || resampling;
+
+        const int n = juce::jmin (resample ? resampleChunk : chunkSize, numSamples - done);
         float* tl = outScratch.getWritePointer (0);
         float* tr = outScratch.getWritePointer (1);
 
-        renderChunk (tl, tr, n);
+        if (resample)
+        {
+            renderResampled (tl, tr, n, previousRatio, ratio);
+        }
+        else
+        {
+            produce (tl, tr, n, 1.0);
+
+            // remember the last frames so a later pitch movement can start without a gap
+            for (int k = 0; k < 4; ++k)
+            {
+                const int from = n - 4 + k;
+                history[0][k] = from >= 0 ? tl[from] : history[0][juce::jmin (3, k + n)];
+                history[1][k] = from >= 0 ? tr[from] : history[1][juce::jmin (3, k + n)];
+            }
+        }
+
+        previousRatio = ratio;
+        diveElapsed += n;
 
         for (int i = 0; i < n; ++i)
         {

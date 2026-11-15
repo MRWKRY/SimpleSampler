@@ -39,6 +39,12 @@ struct PadSettings
     float  decaySec    = 0.1f;
     float  sustain     = 1.0f;
     float  releaseSec  = 0.05f;
+
+    // version 2 (captured at note-on like everything else)
+    float  diveSemitones    = 0.0f;   // pitch offset at the start of the note, eases back to 0
+    float  diveSeconds      = 0.25f;
+    float  formantSemitones = 0.0f;
+    bool   forceStretch     = false;  // use the stretch engine even at original speed (keeps tempo exact while the pitch moves)
 };
 
 /** One of the 16 pads: its parameters, its sample and UI feedback values. */

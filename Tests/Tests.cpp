@@ -1,164 +1,13 @@
 // SimpleSampler automated tests (plain console app, exit code 0 = all passed)
 
-#include "PluginProcessor.h"
-#include "ParamMath.h"
+#include "TestHelpers.h"
 #if SS_HAS_PRESETS
  #include "PresetManager.h"
 #endif
-#include <iostream>
+
 
 using namespace ParamMath;
 
-namespace
-{
-    int failures = 0, checks = 0;
-    bool verbose = false;
-
-    void check (bool ok, const juce::String& what)
-    {
-        ++checks;
-        if (verbose)
-            std::cout << "  " << (ok ? "ok  : " : "FAIL: ") << what << std::endl;
-        if (! ok)
-        {
-            ++failures;
-            std::cout << "  FAIL: " << what << std::endl;
-        }
-    }
-
-    void checkNear (double actual, double expected, double tolerance, const juce::String& what)
-    {
-        check (std::abs (actual - expected) <= tolerance,
-               what + " (expected " + juce::String (expected, 4) + " +-" + juce::String (tolerance, 4)
-                    + ", got " + juce::String (actual, 4) + ")");
-    }
-
-    void section (const char* name) { std::cout << "[" << name << "]" << std::endl; }
-
-    juce::File tempDir()
-    {
-        auto d = juce::File::getSpecialLocation (juce::File::tempDirectory).getChildFile ("SimpleSamplerTests");
-        d.createDirectory();
-        return d;
-    }
-
-    /** Writes a sine test file. */
-    juce::File writeSine (const juce::String& name, double sampleRate, double seconds, double freq, int channels)
-    {
-        auto file = tempDir().getChildFile (name);
-        file.deleteFile();
-
-        const int n = (int) (sampleRate * seconds);
-        juce::AudioBuffer<float> buffer (channels, n);
-        for (int ch = 0; ch < channels; ++ch)
-            for (int i = 0; i < n; ++i)
-                buffer.setSample (ch, i, 0.5f * (float) std::sin (juce::MathConstants<double>::twoPi * freq * i / sampleRate));
-
-        juce::WavAudioFormat wav;
-        std::unique_ptr<juce::AudioFormatWriter> writer (wav.createWriterFor (new juce::FileOutputStream (file),
-                                                                              sampleRate, (unsigned int) channels, 16, {}, 0));
-        jassert (writer != nullptr);
-        writer->writeFromAudioSampleBuffer (buffer, 0, n);
-        writer.reset();
-        return file;
-    }
-
-    void setParam (SimpleSamplerProcessor& p, int pad, const char* name, float value)
-    {
-        auto* param = p.getPadParameter (pad, name);
-        jassert (param != nullptr);
-        param->setValueNotifyingHost (param->convertTo0to1 (value));
-    }
-
-    float getParam (SimpleSamplerProcessor& p, int pad, const char* name)
-    {
-        return p.apvts.getRawParameterValue (id::pad (pad, name))->load();
-    }
-
-    struct Event { int block; juce::MidiMessage message; };
-
-    /** Renders `seconds` of audio, inserting the given MIDI events at the start of their block. */
-    juce::AudioBuffer<float> render (SimpleSamplerProcessor& p, double sampleRate, double seconds,
-                                     const std::vector<Event>& events, int blockSize = 512)
-    {
-        const int total = (int) (seconds * sampleRate);
-        juce::AudioBuffer<float> out (2, total);
-        out.clear();
-        juce::AudioBuffer<float> block (2, blockSize);
-
-        int blockIndex = 0;
-        for (int pos = 0; pos < total; pos += blockSize, ++blockIndex)
-        {
-            const int n = juce::jmin (blockSize, total - pos);
-            juce::AudioBuffer<float> view (block.getArrayOfWritePointers(), 2, n);
-            juce::MidiBuffer midi;
-            for (auto& e : events)
-                if (e.block == blockIndex)
-                    midi.addEvent (e.message, 0);
-
-            p.processBlock (view, midi);
-            out.copyFrom (0, pos, view, 0, 0, n);
-            out.copyFrom (1, pos, view, 1, 0, n);
-        }
-        return out;
-    }
-
-    /** Time of the last sample louder than the threshold, in seconds. */
-    double soundingLength (const juce::AudioBuffer<float>& b, double sampleRate, float threshold = 0.02f)
-    {
-        const float* d = b.getReadPointer (0);
-        for (int i = b.getNumSamples(); --i >= 0;)
-            if (std::abs (d[i]) > threshold)
-                return (i + 1) / sampleRate;
-        return 0.0;
-    }
-
-    /** Frequency estimated from zero crossings between two times. */
-    double frequency (const juce::AudioBuffer<float>& b, double sampleRate, double from, double to)
-    {
-        const float* d = b.getReadPointer (0);
-        const int a = (int) (from * sampleRate), e = juce::jmin (b.getNumSamples() - 1, (int) (to * sampleRate));
-        int crossings = 0;
-        for (int i = a; i < e; ++i)
-            if (d[i] <= 0.0f && d[i + 1] > 0.0f)
-                ++crossings;
-        return crossings / ((e - a) / sampleRate);
-    }
-
-    float peak (const juce::AudioBuffer<float>& b, double sampleRate, double from, double to)
-    {
-        const int a = juce::jlimit (0, b.getNumSamples(), (int) (from * sampleRate));
-        const int e = juce::jlimit (a, b.getNumSamples(), (int) (to * sampleRate));
-        return b.getMagnitude (0, a, e - a);
-    }
-
-    float maxStep (const juce::AudioBuffer<float>& b, double sampleRate, double from, double to)
-    {
-        const float* d = b.getReadPointer (0);
-        const int a = (int) (from * sampleRate), e = juce::jmin (b.getNumSamples() - 1, (int) (to * sampleRate));
-        float m = 0.0f;
-        for (int i = a; i < e; ++i)
-            m = juce::jmax (m, std::abs (d[i + 1] - d[i]));
-        return m;
-    }
-
-    bool waitForLoads (SimpleSamplerProcessor& p, int timeoutMs = 8000)
-    {
-        const auto start = juce::Time::getMillisecondCounter();
-        for (;;)
-        {
-            bool busy = false;
-            for (int i = 0; i < SimpleSamplerProcessor::numPads; ++i)
-                busy = busy || p.getPad (i).loading.load();
-            if (! busy) return true;
-            if (juce::Time::getMillisecondCounter() - start > (juce::uint32) timeoutMs) return false;
-            juce::Thread::sleep (10);
-        }
-    }
-
-    const auto noteOn  = [] (int note) { return juce::MidiMessage::noteOn (1, note, (juce::uint8) 127); };
-    const auto noteOff = [] (int note) { return juce::MidiMessage::noteOff (1, note); };
-}
 
 //==============================================================================
 static void testMath()
@@ -613,6 +462,9 @@ int main (int argc, char** argv)
     testState();
    #if SS_HAS_PRESETS
     testPresets();
+   #endif
+    runV2Tests();
+   #if 0
    #endif
 
     tempDir().deleteRecursively();
