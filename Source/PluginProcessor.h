@@ -77,6 +77,9 @@ public:
     /** Bumped whenever the whole state was replaced (the editor polls this). */
     std::atomic<uint32_t> stateVersion { 0 };
 
+    /** Last editor size (restored when the editor is reopened / the project is loaded). */
+    std::atomic<int> editorWidth { 1000 }, editorHeight { 620 };
+
     juce::AudioProcessorValueTreeState apvts;
 
     static juce::File getUserFolder();          // <Documents>/SimpleSampler

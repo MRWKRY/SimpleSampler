@@ -12,10 +12,13 @@ using namespace ParamMath;
 namespace
 {
     int failures = 0, checks = 0;
+    bool verbose = false;
 
     void check (bool ok, const juce::String& what)
     {
         ++checks;
+        if (verbose)
+            std::cout << "  " << (ok ? "ok  : " : "FAIL: ") << what << std::endl;
         if (! ok)
         {
             ++failures;
@@ -529,9 +532,10 @@ static void testPresets()
 #endif
 
 //==============================================================================
-int main()
+int main (int argc, char** argv)
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
+    verbose = argc > 1 && juce::String (argv[1]) == "-v";
 
     testMath();
     testEngine();

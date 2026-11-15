@@ -48,14 +48,20 @@ juce_add_plugin(SimpleSampler
     VST3_CATEGORIES             Instrument Sampler
     COPY_PLUGIN_AFTER_BUILD     FALSE)
 
-target_sources(SimpleSampler PRIVATE
+set(SIMPLESAMPLER_SOURCES
     Source/PluginProcessor.cpp
     Source/PluginEditor.cpp
     Source/Voice.cpp
     Source/PadSlot.cpp
-    Source/SampleLoader.cpp)
+    Source/SampleLoader.cpp
+    Source/PastelLookAndFeel.cpp
+    Source/NumberField.cpp
+    Source/EnvelopeEditor.cpp
+    Source/ControlCards.cpp
+    Source/WaveformView.cpp
+    Source/PadGrid.cpp)
 
-target_compile_definitions(SimpleSampler PUBLIC
+set(SIMPLESAMPLER_DEFINITIONS
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
     JUCE_VST3_CAN_REPLACE_VST2=0
@@ -65,11 +71,13 @@ target_compile_definitions(SimpleSampler PUBLIC
     JUCE_USE_MP3AUDIOFORMAT=0
     JUCE_MODAL_LOOPS_PERMITTED=0)
 
+target_sources(SimpleSampler PRIVATE ${SIMPLESAMPLER_SOURCES})
+target_compile_definitions(SimpleSampler PUBLIC ${SIMPLESAMPLER_DEFINITIONS})
+
 target_link_libraries(SimpleSampler
     PRIVATE
         juce::juce_audio_utils
         juce::juce_audio_formats
-        juce::juce_dsp
         signalsmith-stretch
     PUBLIC
         juce::juce_recommended_config_flags
@@ -81,17 +89,20 @@ endif()
 
 # ---------------------------------------------------------------------------
 # Tests
+#   The test executable compiles the plugin sources itself instead of linking
+#   the plugin library: linking both the library and the JUCE modules would put
+#   two differently configured copies of JUCE into one program.
 # ---------------------------------------------------------------------------
 if(SIMPLESAMPLER_BUILD_TESTS)
     juce_add_console_app(SimpleSamplerTests PRODUCT_NAME "SimpleSamplerTests")
-    target_sources(SimpleSamplerTests PRIVATE Tests/Tests.cpp)
+    target_sources(SimpleSamplerTests PRIVATE Tests/Tests.cpp ${SIMPLESAMPLER_SOURCES})
     target_include_directories(SimpleSamplerTests PRIVATE Source)
+    target_compile_definitions(SimpleSamplerTests PRIVATE ${SIMPLESAMPLER_DEFINITIONS})
     target_link_libraries(SimpleSamplerTests PRIVATE
-        SimpleSampler
         juce::juce_audio_utils
         juce::juce_audio_formats
-        juce::juce_dsp
-        signalsmith-stretch)
+        signalsmith-stretch
+        juce::juce_recommended_config_flags)
     if(MSVC)
         target_compile_options(SimpleSamplerTests PRIVATE /utf-8)
     endif()

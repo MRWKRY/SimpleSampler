@@ -463,6 +463,8 @@ juce::ValueTree SimpleSamplerProcessor::createStateTree() const
     root.setProperty (verProp, 1, nullptr);
     root.setProperty (nameProp, getPresetName(), nullptr);
     root.setProperty (selProp, getSelectedPad(), nullptr);
+    root.setProperty ("editorWidth", editorWidth.load(), nullptr);
+    root.setProperty ("editorHeight", editorHeight.load(), nullptr);
 
     root.appendChild (const_cast<juce::AudioProcessorValueTreeState&> (apvts).copyState(), nullptr);
 
@@ -494,6 +496,8 @@ bool SimpleSamplerProcessor::restoreStateTree (const juce::ValueTree& tree, cons
 
     setPresetName (tree.getProperty (nameProp, "Init").toString());
     setSelectedPad ((int) tree.getProperty (selProp, 0));
+    editorWidth.store (juce::jlimit (400, 4000, (int) tree.getProperty ("editorWidth", editorWidth.load())));
+    editorHeight.store (juce::jlimit (300, 3000, (int) tree.getProperty ("editorHeight", editorHeight.load())));
 
     const auto padsTree = tree.getChildWithName (padsType);
 

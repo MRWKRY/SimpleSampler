@@ -1,7 +1,233 @@
-#include "PluginProcessor.h"
+#include "PluginEditor.h"
 
-// Stage 1: generic parameter list. Replaced by the real editor in stage 2.
+namespace
+{
+    constexpr int margin = 16;
+    constexpr int headerHeight = 46;
+    constexpr int gap = 12;
+}
+
+SimpleSamplerEditor::SimpleSamplerEditor (SimpleSamplerProcessor& p)
+    : AudioProcessorEditor (p), processor (p),
+      waveform (p), grid (p), bpmCard (p), pitchCard (p), loopCard (p), envelopeCard (p)
+{
+    setLookAndFeel (&lookAndFeel);
+    setOpaque (true);
+
+    addAndMakeVisible (waveform);
+    addAndMakeVisible (grid);
+    addAndMakeVisible (bpmCard);
+    addAndMakeVisible (pitchCard);
+    addAndMakeVisible (loopCard);
+    addAndMakeVisible (envelopeCard);
+
+    masterKnob.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+    masterKnob.setTextBoxStyle (juce::Slider::NoTextBox, true, 0, 0);
+    masterKnob.setDoubleClickReturnValue (true, 0.0);
+    masterKnob.setTooltip ("Output volume");
+    masterKnob.onValueChange = [this] { repaint (headerArea()); };
+    addAndMakeVisible (masterKnob);
+    masterAttachment = std::make_unique<juce::SliderParameterAttachment> (*processor.getMasterParameter(), masterKnob);
+
+    grid.onSelect = [this] (int pad) { selectPad (pad); };
+    grid.onBrowse = [this] (int pad) { browseForPad (pad); };
+    waveform.onBrowse = [this] (int pad) { browseForPad (pad); };
+
+    lastStateVersion = processor.stateVersion.load();
+    for (int i = 0; i < SimpleSamplerProcessor::numPads; ++i)
+        lastContentVersion[i] = processor.getPad (i).contentVersion.load();
+
+    selectPad (processor.getSelectedPad(), true);
+
+    setResizable (true, true);
+    setResizeLimits (860, 560, 2000, 1400);
+    setSize (juce::jlimit (860, 2000, processor.editorWidth.load()),
+             juce::jlimit (560, 1400, processor.editorHeight.load()));
+
+    startTimerHz (60);
+}
+
+SimpleSamplerEditor::~SimpleSamplerEditor()
+{
+    stopTimer();
+    chooser.reset();
+    setLookAndFeel (nullptr);
+}
+
+juce::Rectangle<int> SimpleSamplerEditor::headerArea() const
+{
+    return getLocalBounds().reduced (margin, 0).withTrimmedTop (margin - 4).withHeight (headerHeight);
+}
+
+//==============================================================================
+void SimpleSamplerEditor::paint (juce::Graphics& g)
+{
+    if (background.isValid())
+        g.drawImageAt (background, 0, 0);
+    else
+        PastelLookAndFeel::drawBackground (g, getLocalBounds());
+
+    auto header = headerArea();
+
+    // ---- own logo mark: a rounded tile with four pad dots
+    auto logo = header.removeFromLeft (34).withSizeKeepingCentre (30, 30).toFloat();
+    g.setGradientFill (juce::ColourGradient (juce::Colour (0xff8b5cf6), logo.getX(), logo.getY(),
+                                             juce::Colour (0xff7cc4f5), logo.getRight(), logo.getBottom(), false));
+    g.fillRoundedRectangle (logo, 9.0f);
+    g.setColour (juce::Colours::white);
+    for (int i = 0; i < 4; ++i)
+    {
+        const float cx = logo.getCentreX() + ((i % 2) ? 5.0f : -5.0f);
+        const float cy = logo.getCentreY() + ((i / 2) ? 5.0f : -5.0f);
+        g.setOpacity (i == 2 ? 1.0f : 0.6f);
+        g.fillRoundedRectangle (juce::Rectangle<float> (7.0f, 7.0f).withCentre ({ cx, cy }), 2.2f);
+    }
+    g.setOpacity (1.0f);
+
+    header.removeFromLeft (10);
+    auto titleArea = header.removeFromLeft (190);
+    g.setColour (PastelLookAndFeel::text());
+    g.setFont (PastelLookAndFeel::font (19.0f, true));
+    g.drawText ("SimpleSampler", titleArea.removeFromTop (27), juce::Justification::bottomLeft, false);
+    g.setColour (PastelLookAndFeel::textSoft());
+    g.setFont (PastelLookAndFeel::font (11.5f));
+    g.drawText ("16 pads / stretch + pitch", titleArea, juce::Justification::topLeft, false);
+
+    // ---- output volume read-out next to the knob
+    const auto knob = masterKnob.getBounds();
+    auto textArea = juce::Rectangle<int> (knob.getX() - 78, knob.getY(), 72, knob.getHeight());
+    g.setColour (PastelLookAndFeel::textSoft());
+    g.setFont (PastelLookAndFeel::font (10.5f));
+    g.drawText ("OUTPUT", textArea.removeFromTop (textArea.getHeight() / 2), juce::Justification::bottomRight, false);
+    g.setColour (PastelLookAndFeel::text());
+    g.setFont (PastelLookAndFeel::font (12.5f, true));
+    const double db = masterKnob.getValue();
+    g.drawText (db <= -59.95 ? juce::String ("-inf dB") : juce::String (db, 1) + " dB", textArea, juce::Justification::topRight, false);
+}
+
+void SimpleSamplerEditor::resized()
+{
+    processor.editorWidth.store (getWidth());
+    processor.editorHeight.store (getHeight());
+
+    // pre-render the background once per size
+    background = juce::Image (juce::Image::RGB, juce::jmax (1, getWidth()), juce::jmax (1, getHeight()), false);
+    {
+        juce::Graphics g (background);
+        PastelLookAndFeel::drawBackground (g, getLocalBounds());
+    }
+
+    auto header = headerArea();
+    masterKnob.setBounds (header.removeFromRight (44).withSizeKeepingCentre (44, 44));
+
+    auto area = getLocalBounds().reduced (margin);
+    area.removeFromTop (headerHeight + gap - 4);
+
+    // ---- right panel: four cards
+    auto right = area.removeFromRight (juce::jlimit (290, 380, juce::roundToInt ((float) getWidth() * 0.31f)));
+    area.removeFromRight (gap);
+
+    const int cardGap = 10;
+    bpmCard.setBounds (right.removeFromTop (96));
+    right.removeFromTop (cardGap);
+    pitchCard.setBounds (right.removeFromTop (96));
+    right.removeFromTop (cardGap);
+    loopCard.setBounds (right.removeFromTop (96));
+    right.removeFromTop (cardGap);
+    envelopeCard.setBounds (right);
+
+    // ---- left: waveform above the pad grid
+    auto pads = area.removeFromBottom (juce::jmax (190, juce::roundToInt ((float) area.getHeight() * 0.46f)));
+    area.removeFromBottom (gap - 3);
+    waveform.setBounds (area);
+    grid.setBounds (pads.expanded (3, 3));
+}
+
+//==============================================================================
+void SimpleSamplerEditor::selectPad (int padIndex, bool force)
+{
+    padIndex = juce::jlimit (0, SimpleSamplerProcessor::numPads - 1, padIndex);
+    if (padIndex == shownPad && ! force)
+        return;
+
+    shownPad = padIndex;
+    processor.setSelectedPad (padIndex);
+
+    grid.setSelectedPad (padIndex);
+    waveform.setPad (padIndex);
+    bpmCard.setPad (padIndex);
+    pitchCard.setPad (padIndex);
+    loopCard.setPad (padIndex);
+    envelopeCard.setPad (padIndex);
+    refreshSelectedPadContent();
+}
+
+void SimpleSamplerEditor::refreshSelectedPadContent()
+{
+    waveform.refreshContent();
+    const auto sample = processor.getPad (shownPad).getSample();
+    loopCard.setSampleLength (sample != nullptr ? sample->lengthSeconds : 0.0);
+}
+
+void SimpleSamplerEditor::browseForPad (int padIndex)
+{
+    auto start = lastBrowseFolder;
+    if (! start.isDirectory())
+    {
+        const auto current = processor.getPad (padIndex).getFile();
+        start = current.existsAsFile() ? current.getParentDirectory()
+                                       : juce::File::getSpecialLocation (juce::File::userMusicDirectory);
+    }
+
+    chooser = std::make_unique<juce::FileChooser> ("Choose a sample for pad " + juce::String (padIndex + 1),
+                                                   start, processor.getLoader().getWildcard());
+
+    juce::Component::SafePointer<SimpleSamplerEditor> safe (this);
+    chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+                          [safe, padIndex] (const juce::FileChooser& fc)
+                          {
+                              if (safe == nullptr)
+                                  return;
+
+                              const auto file = fc.getResult();
+                              if (file.existsAsFile())
+                              {
+                                  safe->lastBrowseFolder = file.getParentDirectory();
+                                  safe->processor.loadSampleIntoPad (padIndex, file, true);
+                              }
+                          });
+}
+
+void SimpleSamplerEditor::timerCallback()
+{
+    // the whole state was replaced (project load / preset load)
+    const auto stateVersion = processor.stateVersion.load();
+    if (stateVersion != lastStateVersion)
+    {
+        lastStateVersion = stateVersion;
+        selectPad (processor.getSelectedPad(), true);
+        grid.refreshAll();
+    }
+
+    // samples that finished loading / were cleared
+    for (int i = 0; i < SimpleSamplerProcessor::numPads; ++i)
+    {
+        const auto version = processor.getPad (i).contentVersion.load();
+        if (version != lastContentVersion[i])
+        {
+            lastContentVersion[i] = version;
+            grid.refreshPad (i);
+            if (i == shownPad)
+                refreshSelectedPadContent();
+        }
+    }
+
+    grid.updateGlow();
+    waveform.setPlayPosition (processor.getPad (shownPad).playPosition.load (std::memory_order_relaxed));
+}
+
+//==============================================================================
 juce::AudioProcessorEditor* SimpleSamplerProcessor::createEditor()
 {
-    return new juce::GenericAudioProcessorEditor (*this);
+    return new SimpleSamplerEditor (*this);
 }
