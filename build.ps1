@@ -29,10 +29,6 @@ if ($LASTEXITCODE -ne 0) { throw "CMake configure failed" }
 # (stale object files then get linked together with new ones). The project's own
 # sources compile quickly, so their object files are always rebuilt; JUCE's are kept.
 $ownSources = @(Get-ChildItem -Recurse -Filter *.cpp (Join-Path $root "Source")) + @(Get-ChildItem -Filter *.cpp (Join-Path $root "Tests"))
-# The version resource (file properties in Explorer) is generated once and not refreshed when the
-# project version changes, so it is regenerated on every build as well.
-Get-ChildItem (Join-Path $buildDir "SimpleSampler_artefactsJuceLibraryCode") -Filter "*_resources.rc" -ErrorAction SilentlyContinue | Remove-Item -Force
-
 foreach ($dir in @("SimpleSampler.dir", "SimpleSamplerTests.dir")) {
     $objDir = Join-Path $buildDir "$dir\$Config"
     if (Test-Path $objDir) {
