@@ -474,8 +474,6 @@ int main (int argc, char** argv)
     testPresets();
    #endif
     runV2Tests();
-   #if 0
-   #endif
 
     tempDir().deleteRecursively();
 
