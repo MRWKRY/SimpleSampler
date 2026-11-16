@@ -25,6 +25,20 @@ Write-Host "Generator : $generator"
 & $cmake -S $root -B $buildDir -G $generator -A x64
 if ($LASTEXITCODE -ne 0) { throw "CMake configure failed" }
 
+# MSBuild's incremental build has been seen to miss header changes for this project
+# (stale object files then get linked together with new ones). The project's own
+# sources compile quickly, so their object files are always rebuilt; JUCE's are kept.
+$ownSources = @(Get-ChildItem -Recurse -Filter *.cpp (Join-Path $root "Source")) + @(Get-ChildItem -Filter *.cpp (Join-Path $root "Tests"))
+foreach ($dir in @("SimpleSampler.dir", "SimpleSamplerTests.dir")) {
+    $objDir = Join-Path $buildDir "$dir\$Config"
+    if (Test-Path $objDir) {
+        foreach ($src in $ownSources) {
+            $obj = Join-Path $objDir ($src.BaseName + ".obj")
+            if (Test-Path $obj) { Remove-Item -Force $obj }
+        }
+    }
+}
+
 & $cmake --build $buildDir --config $Config --parallel
 if ($LASTEXITCODE -ne 0) { throw "Build failed" }
 

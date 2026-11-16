@@ -36,6 +36,8 @@ namespace fx
             reset();
         }
 
+        float getLimiterGain() const noexcept           { return limiter.getGainReduction(); }
+
         void reset() noexcept
         {
             reverb.reset(); delay.reset(); bloom.reset();

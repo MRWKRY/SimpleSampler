@@ -349,7 +349,6 @@ static void testGenre (Rig& rig)
 
     rig.reset();
     const auto dry = rig.play (1.6);
-    { const auto s = p.getPad (0).getSample(); for (int i : { 0, 1, 2, 3, 20, 100, 480, 2400, 4800, 24000, 24001, 47000 }) std::cout << "   dbg " << i << " dry " << dry.getSample (0, i) << " raw " << s->buffer.getSample (0, i) << std::endl; std::cout << "   dbg len " << soundingLength (dry, sr) << " freq " << frequency (dry, sr, 0.2, 0.8) << std::endl; }
 
     static const char* const knobs[] = { id::bloom, id::grain, id::drift, id::warmth, id::dew,
                                          id::pump, id::wobble, id::gate, id::width, id::crush, id::dive, id::formant };

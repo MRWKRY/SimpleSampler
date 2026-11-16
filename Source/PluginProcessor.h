@@ -78,6 +78,8 @@ public:
 
     SampleLoader& getLoader() noexcept                      { return loader; }
     int getActiveVoiceCount() const noexcept                { return totalActiveVoices.load(); }
+    /** Current gain of the output limiter (1 = not limiting). Not thread-safe: tests / diagnostics only. */
+    float getLimiterGain() const noexcept                   { return globalFx.getLimiterGain(); }
 
     // ---- modulation / randomiser ---------------------------------------------
     ModMatrix& getModMatrix() noexcept                      { return modMatrix; }
