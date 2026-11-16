@@ -9,10 +9,11 @@ Studio One での個人利用を想定しています。
 
 ## インストール / 更新(これだけ)
 
-1. **Studio One を終了する**(起動中だと古いファイルを置き換えられません)
+1. **Studio One を終了する**(起動中でも入れ替えはできますが、新しい版が読み込まれるのは Studio One の再起動後です)
 2. `install.bat` をダブルクリック(未ビルドなら自動でビルドしてからコピーします)
 3. 「管理者として実行しますか」に「はい」
-4. Studio One を起動 → ブラウザの「インストゥルメント」に **SimpleSampler**(ベンダー: HomeMade)
+4. 黒い画面に `OK - the new version is installed and verified.` と出たことを確認(コピー後にファイルを照合しています)
+5. Studio One を起動 → ブラウザの「インストゥルメント」に **SimpleSampler**(ベンダー: HomeMade)。画面左上の名前の下に `v2.0.0` と出ていれば新しい版です
 
 コピー先: `C:\Program Files\Common Files\VST3\SimpleSampler.vst3`
 

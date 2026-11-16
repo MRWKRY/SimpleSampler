@@ -108,7 +108,12 @@ void SimpleSamplerEditor::paint (juce::Graphics& g)
     g.drawText ("SimpleSampler", titleArea.removeFromTop (27), juce::Justification::bottomLeft, false);
     g.setColour (PastelLookAndFeel::textSoft());
     g.setFont (PastelLookAndFeel::font (11.5f));
-    g.drawText ("16 pads / stretch + pitch", titleArea, juce::Justification::topLeft, false);
+   #ifdef JucePlugin_VersionString
+    const juce::String versionText = "v" JucePlugin_VersionString "  -  16 pads / stretch + FX";
+   #else
+    const juce::String versionText = "16 pads / stretch + FX";
+   #endif
+    g.drawText (versionText, titleArea, juce::Justification::topLeft, false);
 
     // ---- output volume read-out next to the knob
     const auto knob = masterKnob.getBounds();
