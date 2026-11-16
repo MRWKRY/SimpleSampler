@@ -6,8 +6,12 @@
 #include "PadGrid.h"
 #include "ControlCards.h"
 #include "PresetBar.h"
+#include "UI/PanelTabs.h"
+#include "UI/FxPanels.h"
+#include "UI/ModPanel.h"
 
 class SimpleSamplerEditor : public juce::AudioProcessorEditor,
+                            public juce::DragAndDropContainer,
                             private juce::Timer
 {
 public:
@@ -22,6 +26,7 @@ private:
     void selectPad (int padIndex, bool force = false);
     void browseForPad (int padIndex);
     void refreshSelectedPadContent();
+    void showTab (int tab);
 
     juce::Rectangle<int> headerArea() const;
 
@@ -35,6 +40,12 @@ private:
     LoopCard loopCard;
     EnvelopeCard envelopeCard;
     PresetBar presetBar;
+
+    // right panel: tabs + the three new panels (the Sample tab shows the four cards above)
+    PanelTabs tabs;
+    TonePanel tonePanel;
+    GenrePanel genrePanel;
+    ModPanel modPanel;
 
     juce::Slider masterKnob;
     std::unique_ptr<juce::SliderParameterAttachment> masterAttachment;

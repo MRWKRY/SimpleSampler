@@ -15,6 +15,12 @@ public:
     static juce::Colour accentSoft()  { return juce::Colour (0xffcbbcfb); }
     static juce::Colour track()       { return juce::Colour (0xffe3e1ee); }
     static juce::Colour gridLine()    { return juce::Colour (0x12605a8a); }
+    /** Colour of modulator 1..4 (chips, range arcs, matrix rows). */
+    static juce::Colour modColour (int index)
+    {
+        static const juce::uint32 colours[4] = { 0xff8b5cf6, 0xfff472b6, 0xff38bdf8, 0xfffb923c };
+        return juce::Colour (colours[index & 3]);
+    }
 
     struct PadColours { juce::Colour a, b; };
     /** Two-colour gradient of a pad (each pad has its own hue pair). */

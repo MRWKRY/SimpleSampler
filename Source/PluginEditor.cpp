@@ -5,11 +5,13 @@ namespace
     constexpr int margin = 16;
     constexpr int headerHeight = 46;
     constexpr int gap = 12;
+    constexpr int minWidth = 1040, minHeight = 690;
 }
 
 SimpleSamplerEditor::SimpleSamplerEditor (SimpleSamplerProcessor& p)
     : AudioProcessorEditor (p), processor (p),
-      waveform (p), grid (p), bpmCard (p), pitchCard (p), loopCard (p), envelopeCard (p), presetBar (p)
+      waveform (p), grid (p), bpmCard (p), pitchCard (p), loopCard (p), envelopeCard (p), presetBar (p),
+      tabs (p), tonePanel (p), genrePanel (p), modPanel (p)
 {
     addAndMakeVisible (presetBar);
     setLookAndFeel (&lookAndFeel);
@@ -21,6 +23,19 @@ SimpleSamplerEditor::SimpleSamplerEditor (SimpleSamplerProcessor& p)
     addAndMakeVisible (pitchCard);
     addAndMakeVisible (loopCard);
     addAndMakeVisible (envelopeCard);
+
+    addAndMakeVisible (tabs);
+    addChildComponent (tonePanel);
+    addChildComponent (genrePanel);
+    addChildComponent (modPanel);
+    tabs.onTabChanged = [this] (int tab) { showTab (tab); };
+    tabs.onModSelected = [this] (int mod)
+    {
+        modPanel.setMod (mod);
+        tabs.setSelectedMod (mod);
+        showTab (PanelTabs::modTab);
+    };
+    tabs.setSelectedMod (0);
 
     masterKnob.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
     masterKnob.setTextBoxStyle (juce::Slider::NoTextBox, true, 0, 0);
@@ -39,11 +54,12 @@ SimpleSamplerEditor::SimpleSamplerEditor (SimpleSamplerProcessor& p)
         lastContentVersion[i] = processor.getPad (i).contentVersion.load();
 
     selectPad (processor.getSelectedPad(), true);
+    showTab (processor.editorTab.load());
 
     setResizable (true, true);
-    setResizeLimits (860, 560, 2000, 1400);
-    setSize (juce::jlimit (860, 2000, processor.editorWidth.load()),
-             juce::jlimit (560, 1400, processor.editorHeight.load()));
+    setResizeLimits (minWidth, minHeight, 2200, 1500);
+    setSize (juce::jlimit (minWidth, 2200, processor.editorWidth.load()),
+             juce::jlimit (minHeight, 1500, processor.editorHeight.load()));
 
     startTimerHz (60);
 }
@@ -134,8 +150,14 @@ void SimpleSamplerEditor::resized()
     area.removeFromTop (headerHeight + gap - 4);
 
     // ---- right panel: four cards
-    auto right = area.removeFromRight (juce::jlimit (290, 380, juce::roundToInt ((float) getWidth() * 0.31f)));
+    auto right = area.removeFromRight (juce::jlimit (350, 420, juce::roundToInt ((float) getWidth() * 0.335f)));
     area.removeFromRight (gap);
+
+    tabs.setBounds (right.removeFromTop (32));
+    right.removeFromTop (8);
+    tonePanel.setBounds (right);
+    genrePanel.setBounds (right);
+    modPanel.setBounds (right);
 
     const int cardGap = 10;
     bpmCard.setBounds (right.removeFromTop (96));
@@ -169,6 +191,8 @@ void SimpleSamplerEditor::selectPad (int padIndex, bool force)
     pitchCard.setPad (padIndex);
     loopCard.setPad (padIndex);
     envelopeCard.setPad (padIndex);
+    tonePanel.setPad (padIndex);
+    genrePanel.setPad (padIndex);
     refreshSelectedPadContent();
 }
 
@@ -216,8 +240,10 @@ void SimpleSamplerEditor::timerCallback()
     {
         lastStateVersion = stateVersion;
         selectPad (processor.getSelectedPad(), true);
+    showTab (processor.editorTab.load());
         grid.refreshAll();
         presetBar.refresh();
+        showTab (processor.editorTab.load());
     }
 
     // samples that finished loading / were cleared
@@ -241,4 +267,21 @@ void SimpleSamplerEditor::timerCallback()
 juce::AudioProcessorEditor* SimpleSamplerProcessor::createEditor()
 {
     return new SimpleSamplerEditor (*this);
+}
+
+/** Right panel: Sample (the original four cards) / Tone-FX / Genre / Mod. */
+void SimpleSamplerEditor::showTab (int tab)
+{
+    tab = juce::jlimit (0, (int) PanelTabs::numTabs - 1, tab);
+    processor.editorTab.store (tab);
+    tabs.setTab (tab);
+
+    const bool sample = tab == PanelTabs::sampleTab;
+    bpmCard.setVisible (sample);
+    pitchCard.setVisible (sample);
+    loopCard.setVisible (sample);
+    envelopeCard.setVisible (sample);
+    tonePanel.setVisible (tab == PanelTabs::toneTab);
+    genrePanel.setVisible (tab == PanelTabs::genreTab);
+    modPanel.setVisible (tab == PanelTabs::modTab);
 }

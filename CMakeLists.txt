@@ -61,6 +61,10 @@ set(SIMPLESAMPLER_SOURCES
     Source/WaveformView.cpp
     Source/PadGrid.cpp
     Source/Modulation/ModMatrix.cpp
+    Source/UI/Knob.cpp
+    Source/UI/PanelTabs.cpp
+    Source/UI/FxPanels.cpp
+    Source/UI/ModPanel.cpp
     Source/PresetManager.cpp
     Source/PresetBar.cpp)
 

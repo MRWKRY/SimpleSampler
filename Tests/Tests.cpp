@@ -388,7 +388,7 @@ static void testPresets()
 // Developer helper:  SimpleSamplerTests --demo <folder>
 // Writes a few synthesised samples plus a plugin state (base64, the format the
 // Standalone app keeps in its settings file) so the GUI can be looked at with content.
-static int makeDemo (const juce::File& dir)
+static int makeDemo (const juce::File& dir, int tab)
 {
     dir.createDirectory();
     const double sr = 44100.0;
@@ -439,6 +439,16 @@ static int makeDemo (const juce::File& dir)
     setParam (p, 4, id::attack, 20.0f);    setParam (p, 4, id::decay, 400.0f);
     setParam (p, 4, id::sustain, 0.7f);    setParam (p, 4, id::release, 300.0f);
     p.setSelectedPad (4);
+    // version 2 content, so every tab has something to show
+    setParam (p, 4, id::level, -3.0f);  setParam (p, 4, id::pan, 20.0f);    setParam (p, 4, id::drive, 35.0f);
+    setParam (p, 4, id::sendRev, 40.0f); setParam (p, 4, id::sendDly, 25.0f); setParam (p, 4, id::eqLow, 3.0f);
+    setParam (p, 4, id::eqHigh, -2.0f); setParam (p, 4, id::bloom, 30.0f);  setParam (p, 4, id::grain, 20.0f);
+    setParam (p, 4, id::pump, 60.0f);   setParam (p, 4, id::wobble, 45.0f); setParam (p, 4, id::width, 50.0f);
+    p.getModMatrix().assign (0, p.getPadTarget (4, id::fxPan), 0.4f);
+    p.getModMatrix().assign (1, p.getPadTarget (4, id::fxWobble), 0.5f);
+    p.getModMatrix().assign (3, p.getModMatrix().findTarget (id::dlFeedback), -0.3f);
+    p.editorTab.store (tab);
+    p.editorWidth.store (1140); p.editorHeight.store (720);
     p.setPresetName ("Demo Kit");
 
     juce::MemoryBlock state;
@@ -455,7 +465,7 @@ int main (int argc, char** argv)
     verbose = argc > 1 && juce::String (argv[1]) == "-v";
 
     if (argc > 2 && juce::String (argv[1]) == "--demo")
-        return makeDemo (juce::File::getCurrentWorkingDirectory().getChildFile (juce::String (argv[2])));
+        return makeDemo (juce::File::getCurrentWorkingDirectory().getChildFile (juce::String (argv[2])), argc > 3 ? juce::String (argv[3]).getIntValue() : 0);
 
     testMath();
     testEngine();

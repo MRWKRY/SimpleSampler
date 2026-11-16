@@ -64,7 +64,7 @@ namespace TempoSync
     inline juce::StringArray shapeNames() { return { "Sine", "Triangle", "Saw", "Square", "Random S&H", "Random Smooth", "Step" }; }
 
     enum Mode { freeRun = 0, hostPosition, retrigger, numModes };
-    inline juce::StringArray modeNames() { return { "Free", "Host position", "Retrigger" }; }
+    inline juce::StringArray modeNames() { return { "Free", "Host", "Retrigger" }; }
 
     constexpr int numSteps = 16;
 

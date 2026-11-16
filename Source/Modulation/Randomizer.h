@@ -14,7 +14,7 @@ class Randomizer
 {
 public:
     enum Scope { padScope = 0, fxScope, bothScope };
-    static juce::StringArray scopeNames()           { return { "Selected pad", "Global FX", "Pad + FX" }; }
+    static juce::StringArray scopeNames()           { return { "Pad", "FX", "Pad + FX" }; }
 
     Randomizer (ModMatrix& m, juce::AudioProcessorValueTreeState& apvts) : matrix (m)
     {
