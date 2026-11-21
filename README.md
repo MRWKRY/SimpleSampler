@@ -364,9 +364,12 @@ Tests/
 - 値が 0 のエフェクト、鳴っていないパッド、入力も残響も無いセンドエフェクトは処理を丸ごと飛ばします
 - デノーマル対策(`ScopedNoDenormals`)と、最終段での NaN / 異常値の検出を入れています
 
-## ライセンスについて
+## ライセンス
 
-- **JUCE** は AGPLv3 と商用ライセンスのデュアルライセンスです。このプロジェクトは個人利用が前提です。
-  ビルドしたプラグインを配布・販売する場合は、AGPLv3 に従ってソースを公開するか、JUCE の商用ライセンスが必要です
-- **Signalsmith Stretch** は MIT ライセンス
+このプロジェクトは **GNU Affero General Public License v3.0**(AGPLv3)で公開しています。全文は [LICENSE](LICENSE) を参照してください。
+
+- **JUCE** は AGPLv3 と商用ライセンスのデュアルライセンスで、このプロジェクトは AGPLv3 の条件で JUCE を使っています。
+  ビルドしたプラグインを配布する場合も AGPLv3 に従ってソースを公開する必要があります(クローズドにするには JUCE の商用ライセンスが必要)
+- **Signalsmith Stretch** は MIT ライセンス(ビルド時に自動でダウンロードするだけで、このリポジトリには含まれていません)
+- このプロジェクトは Claude(Anthropic の AI)と共同で開発しました
 - VST は Steinberg Media Technologies GmbH の商標です
